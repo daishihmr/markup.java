@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="libs/javax.servlet-3.0.0.v201112011016.jar"/>
+	<classpathentry kind="lib" path="libs/jetty-continuation-8.1.8.v20121106.jar"/>
+	<classpathentry kind="lib" path="libs/jetty-http-8.1.8.v20121106.jar"/>
+	<classpathentry kind="lib" path="libs/jetty-io-8.1.8.v20121106.jar"/>
+	<classpathentry kind="lib" path="libs/jetty-server-8.1.8.v20121106.jar"/>
+	<classpathentry kind="lib" path="libs/jetty-util-8.1.8.v20121106.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
