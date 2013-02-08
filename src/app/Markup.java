@@ -15,179 +15,181 @@ import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URI;
 import java.net.URL;
-import java.util.Date;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 
 public class Markup {
 
-    public static void main(String[] args) throws Exception {
-        String input = null;
-        String output = null;
-        int port = 8080;
-        boolean debug = true;
+	public static void main(String[] args) throws Exception {
+		String input = null;
+		String output = null;
+		int port = 8080;
 
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("--input") || args[i].equals("-i")) {
-                input = args[i + 1];
-            }
-            if (args[i].equals("--output") || args[i].equals("-o")) {
-                output = args[i + 1];
-            }
-            if (args[i].equals("--port") || args[i].equals("-p")) {
-                port = Integer.parseInt(args[i + 1]);
-            }
-            if (args[i].equals("--release") || args[i].equals("-r")) {
-                debug = false;
-            }
-        }
+		for (int i = 0; i < args.length; i++) {
+			if (args[i].equals("--input") || args[i].equals("-i")) {
+				input = args[i + 1];
+			}
+			if (args[i].equals("--output") || args[i].equals("-o")) {
+				output = args[i + 1];
+			}
+			if (args[i].equals("--port") || args[i].equals("-p")) {
+				port = Integer.parseInt(args[i + 1]);
+			}
+		}
 
-        if (input == null || output == null) {
-            System.out.println("java -jar markup.jar (--input|-i) <input.md> (--outout|-o) <output.html> [(--port|-p) <port>] [(--release|-r)]");
-            System.out.println("\t(--input|-i) <input.md>\t\t[require] markdown file to input");
-            System.out.println("\t(--output|-o) <output.html>\t[require] html file to output");
-            System.out.println("\t(--port|-p) <port>\t\t[option]  web server port (default 8080)");
-            System.out.println("\t(--release|-r)\t\t\t[option]  write html to release.");
-            return;
-        }
+		if (input == null || output == null) {
+			System.out
+					.println("java -jar markup.jar -i <input.md> -o <output.html> [-p <port>] [-r]");
+			System.out
+					.println("\t-i, --input\t<input.md>\t[require] markdown file to input");
+			System.out
+					.println("\t-o, --output\t<output.html>\t[require] html file to output");
+			System.out
+					.println("\t-p, --port\t<port>\t\t[option]  web server port (default 8080)");
+			return;
+		}
 
-        Server server = new Server(port);
-        ResourceHandler rh = new ResourceHandler();
-        rh.setResourceBase(".");
-        server.setHandler(rh);
-        server.start();
+		final File inputDir = new File(input);
+		final File outputDir = new File(output);
+		if (!outputDir.exists()) {
+			outputDir.mkdirs();
+		}
 
-        File inputFile = new File(input);
-        File outputFile = new File(output);
-        long lastModified = -1;
+		scan(inputDir, new F<File>() {
+			@Override
+			public void apply(File f) throws Exception {
+				if (f.getName().endsWith(".md")) {
+					File outputFile = new File(outputDir, f.getName().replace(
+							".md", ".html"));
+					startChecker(f, outputFile);
+				}
+			}
+		});
 
-        boolean first = true;
-        while (true) {
-            if (inputFile.lastModified() > lastModified) {
-                String html = markup(inputFile);
+		Server server = new Server(port);
+		ResourceHandler rh = new ResourceHandler();
+		rh.setResourceBase(output);
+		server.setHandler(rh);
+		server.start();
+		
+		Thread.sleep(1000);
+		Desktop.getDesktop().browse(new URI("http://localhost:8080/"));
+	}
 
-                PrintWriter writer = new PrintWriter(new OutputStreamWriter(
-                        new FileOutputStream(outputFile, false), "UTF-8"));
-                try {
-                    Date now = new Date();
-                    writer.println("<html>");
-                    writer.println("<head>");
-                    writer.println("<meta charset=UTF-8 />");
-                    writer.println("<link rel='stylesheet' href='https://gist.github.com/raw/4661054/2e66cabdafe1c9a7f354aa2ebf5bc38265e638e5/github.css'>");
-                    writer.println("</head>");
-                    writer.println("<body>");
-                    writer.println(html);
-                    if (debug) {
-                        writer.println("<script src='http://code.jquery.com/jquery-1.9.0.min.js'></script>");
-                        writer.println(String
-                                .format("<script>$(function(){var lm='%s';"
-                                        + "var c=function(){"
-                                        + "$.ajax({url:'./%s',type:'GET',dataType:'html'})"
-                                        + ".done(function(d){"
-                                        + "var l=$('<div>').append($.parseHTML(d)).find('#last');"
-                                        + "if(lm!==l.text())location.href='./%s'"
-                                        + "});" + "setTimeout(c, 2000)};"
-                                        + "c()})</script>", now, output, output));
-                        writer.println(String.format(
-                                "<div id='last' style='display:none'>%s</div>",
-                                now));
-                    }
-                    writer.println("</body>");
-                    writer.println("</html>");
-                    writer.flush();
+	private static interface F<T> {
+		void apply(T t) throws Exception;
+	}
 
-                    if (first) {
-                        Desktop.getDesktop().browse(
-                                new URI("http://localhost:" + port + "/"
-                                        + output));
-                        first = false;
-                    }
+	private static void scan(File file, F<File> f) throws Exception {
+		if (file.isDirectory()) {
+			for (File child : file.listFiles()) {
+				scan(child, f);
+			}
+		} else {
+			f.apply(file);
+		}
+	}
 
-                } finally {
-                    try {
-                        writer.close();
-                    } catch (Exception e) {
-                    }
-                }
+	private static void startChecker(final File inputFile, final File outputFile)
+			throws IOException, InterruptedException {
+		System.out.println("start check " + inputFile);
 
-                lastModified = inputFile.lastModified();
-            }
+		Thread.sleep((long) (100 * Math.random()));
+		new Thread() {
+			public void run() {
+				try {
+					long lastModified = -1;
+					while (true) {
+						if (inputFile.lastModified() > lastModified) {
+							String html = markup(inputFile);
 
-            Thread.sleep(100);
-        }
-    }
+							final PrintWriter writer = new PrintWriter(
+									new OutputStreamWriter(
+											new FileOutputStream(outputFile,
+													false), "UTF-8"));
+							try {
+								writeHtml(outputFile, html, writer);
+							} finally {
+								writer.close();
+							}
 
-    private static String markup(File file) throws MalformedURLException,
-            IOException, ProtocolException {
-        URL url = new URL("https://api.github.com/markdown/raw");
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        try {
-            conn.setDoInput(true);
-            conn.setDoOutput(true);
-            conn.setRequestMethod("POST");
-            conn.addRequestProperty("Content-Type", "text/plain");
+							lastModified = inputFile.lastModified();
+						}
 
-            OutputStream out = null;
-            try {
+						Thread.sleep(100);
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}.start();
+	}
 
-                out = conn.getOutputStream();
+	private static String markup(File file) throws MalformedURLException,
+			IOException, ProtocolException {
+		System.out.println("markup " + file);
 
-                FileInputStream in = new FileInputStream(file);
-                try {
-                    byte[] buf = new byte[1024];
-                    int len;
-                    while ((len = in.read(buf)) != -1) {
-                        out.write(buf, 0, len);
-                    }
-                } finally {
-                    try {
-                        in.close();
-                    } catch (Exception e) {
-                    }
-                }
+		URL url = new URL("https://api.github.com/markdown/raw");
+		HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+		try {
+			conn.setDoInput(true);
+			conn.setDoOutput(true);
+			conn.setRequestMethod("POST");
+			conn.addRequestProperty("Content-Type", "text/plain");
 
-                out.flush();
+			OutputStream out = conn.getOutputStream();
+			try {
+				FileInputStream in = new FileInputStream(file);
+				try {
+					byte[] buf = new byte[1024];
+					int len;
+					while ((len = in.read(buf)) != -1) {
+						out.write(buf, 0, len);
+					}
+				} finally {
+					in.close();
+				}
+				out.flush();
+			} finally {
+				out.close();
+			}
 
-            } finally {
-                try {
-                    out.close();
-                } catch (Exception e) {
-                }
-            }
+			System.out.println("limit = " + conn.getHeaderField("X-RateLimit-Remaining")
+					+ " / " + conn.getHeaderField("X-RateLimit-Limit"));
 
-            for (String name : conn.getHeaderFields().keySet()) {
-                if (name == null) {
-                    System.out.println(conn.getHeaderField(name));
-                } else {
-                    System.out
-                            .println(name + " : " + conn.getHeaderField(name));
-                }
-            }
-            System.out.println();
+			BufferedReader in = new BufferedReader(new InputStreamReader(
+					conn.getInputStream(), "UTF-8"));
+			try {
 
-            BufferedReader in = null;
-            try {
+				StringBuffer result = new StringBuffer();
+				String line = null;
+				while ((line = in.readLine()) != null) {
+					result.append(line + "\n");
+				}
+				return result.toString();
 
-                in = new BufferedReader(new InputStreamReader(
-                        conn.getInputStream(), "UTF-8"));
+			} finally {
+				in.close();
+			}
+		} finally {
+			conn.disconnect();
+			System.out.println("markup success " + file);
+		}
+	}
 
-                StringBuffer result = new StringBuffer();
-                String line = null;
-                while ((line = in.readLine()) != null) {
-                    result.append(line + "\n");
-                }
-                return result.toString();
-
-            } finally {
-                try {
-                    in.close();
-                } catch (Exception e) {
-                }
-            }
-        } finally {
-            conn.disconnect();
-        }
-    }
+	private static void writeHtml(File outputFile, String html,
+			PrintWriter writer) {
+		writer.println("<html>");
+		writer.println("<head>");
+		writer.println("<meta charset=UTF-8 />");
+		writer.println("<link rel='stylesheet' href='https://gist.github.com/raw/4661054/2e66cabdafe1c9a7f354aa2ebf5bc38265e638e5/github.css'>");
+		writer.println("</head>");
+		writer.println("<body>");
+		writer.println(html);
+		writer.println("</body>");
+		writer.println("</html>");
+		writer.flush();
+	}
 
 }
